@@ -11,7 +11,8 @@
     "generate": "prisma generate",
     "studio": "prisma studio",
     "import": "tsx scripts/import-catalogo.ts",
-    "usuario": "tsx scripts/crear-usuario.ts"
+    "usuario": "tsx scripts/crear-usuario.ts",
+    "reset": "tsx scripts/reset-conteos.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
