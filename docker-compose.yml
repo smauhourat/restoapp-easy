@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: restoapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: resto
+      POSTGRES_PASSWORD: resto
+      POSTGRES_DB: restoapp
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resto -d restoapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+
+# Nota: el mapeo usa 5434 y no 5433 porque en la maquina de desarrollo ya hay
+# un PostgreSQL local escuchando en 5433. Si usas este contenedor en vez del
+# Postgres local, actualiza el puerto en server/.env.

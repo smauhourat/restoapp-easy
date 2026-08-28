@@ -1,0 +1,243 @@
+// Modelo de datos del sistema de pedidos de insumos.
+// Traduce la seccion 7 del CLAUDE.md y le suma los campos de sincronizacion.
+//
+// Convenciones que valen para todo el archivo:
+//
+//   id         UUID generado en el CLIENTE, nunca autoincrement. Es
+//              innegociable para offline: el encargado crea un conteo y sus
+//              items sin conexion y necesita IDs estables para referenciarlos
+//              antes de que el servidor los vea.
+//
+//   serverSeq  Contador global monotonico compartido por TODAS las tablas
+//              (no una secuencia por tabla). Es el cursor del pull
+//              incremental. Lo asigna un trigger en cada INSERT y UPDATE
+//              -- ver migrations/.../global_seq. Un @default() no alcanza
+//              porque solo dispara en el insert, y una fila modificada tiene
+//              que volver a viajar al cliente.
+//
+//   deletedAt  Soft delete. Sin esto una fila borrada en el servidor vive
+//              para siempre en el IndexedDB del celular, porque el pull solo
+//              trae lo que existe.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+enum Sector {
+  camara
+  seco
+  bebidas
+  congelado
+  limpieza
+  descartables
+  bodega
+}
+
+enum Unidad {
+  kg
+  lt
+  un
+}
+
+enum EstadoConteo {
+  borrador
+  cerrado
+}
+
+enum EstadoPedido {
+  pendiente
+  enviado
+  recibido
+}
+
+model Proveedor {
+  id         String  @id @db.Uuid
+  nombre     String  @unique
+  telefonoWa String  @default("")
+
+  /// Los 15 proveedores del catalogo inicial comparten el mismo telefono de
+  /// prueba. Marcarlos permite que la previsualizacion avise antes de que
+  /// alguien mande un pedido real al numero equivocado.
+  telefonoEsPlaceholder Boolean @default(false)
+
+  diasEntrega String?
+  horaCorte   String?
+  contacto    String?
+  notas       String?
+
+  productos Producto[]
+  pedidos   Pedido[]
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([serverSeq])
+}
+
+model Producto {
+  id      String  @id @db.Uuid
+  nombre  String
+  familia String?
+
+  /// null significa "falta cargar", y es distinto de 0 o de un valor vacio.
+  /// Un stockMinimo de 0 es un producto que no se pide nunca; un null es un
+  /// producto que todavia no se configuro. Hoy 203 de los 293 estan en null.
+  unidad         Unidad?
+  ordenRecorrido Int?
+  stockMinimo    Decimal? @db.Decimal(10, 2)
+
+  proveedorId String    @db.Uuid
+  proveedor   Proveedor @relation(fields: [proveedorId], references: [id])
+  sector      Sector
+
+  precioUnitario Decimal? @db.Decimal(10, 2)
+  cantidadBulto  Decimal? @db.Decimal(10, 2)
+  precioBulto    Decimal? @db.Decimal(10, 2)
+  activo         Boolean  @default(true)
+
+  conteoItems ConteoItem[]
+  pedidoItems PedidoItem[]
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// Un mismo nombre puede existir en dos proveedores (hay 19 casos). La
+  /// unicidad es por par, y el ABM decide cual queda activo.
+  @@unique([proveedorId, nombre])
+  /// Indice que sirve la query central del conteo: productos de un sector
+  /// en orden de recorrido fisico.
+  @@index([sector, ordenRecorrido])
+  @@index([serverSeq])
+}
+
+model Conteo {
+  id      String       @id @db.Uuid
+  fecha   String // YYYY-MM-DD, fecha local del local
+  usuario String
+  estado  EstadoConteo @default(borrador)
+
+  items   ConteoItem[]
+  pedidos Pedido[]
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([fecha])
+  @@index([serverSeq])
+}
+
+model ConteoItem {
+  id         String   @id @db.Uuid
+  conteoId   String   @db.Uuid
+  conteo     Conteo   @relation(fields: [conteoId], references: [id])
+  productoId String   @db.Uuid
+  producto   Producto @relation(fields: [productoId], references: [id])
+
+  stockActual Decimal? @db.Decimal(10, 2)
+
+  /// Se persiste en vez de calcularse al vuelo porque el usuario la ajusta a
+  /// mano antes de enviar el pedido.
+  cantidadPedir Decimal? @db.Decimal(10, 2)
+
+  /// Reloj del dispositivo que hizo la edicion. Es el criterio de desempate
+  /// del last-write-wins. El orden de auditoria lo da updatedAt, que lo pone
+  /// el servidor: los relojes de los celulares se desfasan.
+  clientUpdatedAt DateTime
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// El grano fino del conflicto. Dos personas contando sectores distintos
+  /// del mismo conteo nunca chocan porque cada fila es de un solo producto.
+  @@unique([conteoId, productoId])
+  @@index([serverSeq])
+}
+
+model Pedido {
+  id          String    @id @db.Uuid
+  conteoId    String    @db.Uuid
+  conteo      Conteo    @relation(fields: [conteoId], references: [id])
+  proveedorId String    @db.Uuid
+  proveedor   Proveedor @relation(fields: [proveedorId], references: [id])
+
+  fecha           String
+  estado          EstadoPedido @default(pendiente)
+  mensajeGenerado String       @default("")
+
+  /// true cuando la persona reescribio el mensaje a mano. Recalcular el
+  /// pedido regenera el texto de los que no fueron tocados, pero nunca pisa
+  /// uno editado.
+  mensajeEditado  Boolean      @default(false)
+
+  clientUpdatedAt DateTime
+
+  items PedidoItem[]
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([conteoId, proveedorId])
+  @@index([serverSeq])
+}
+
+model PedidoItem {
+  id         String   @id @db.Uuid
+  pedidoId   String   @db.Uuid
+  pedido     Pedido   @relation(fields: [pedidoId], references: [id])
+  productoId String   @db.Uuid
+  producto   Producto @relation(fields: [productoId], references: [id])
+
+  cantidad Decimal @db.Decimal(10, 2)
+
+  /// Snapshot del producto al momento del pedido. Congelar nombre, unidad y
+  /// precio es lo que hace posible el analisis historico de precios: si el
+  /// item solo referenciara al producto, cambiar un precio en el maestro
+  /// reescribiria el pasado.
+  nombreProducto String
+  unidad         Unidad?
+  precioUnitario Decimal? @db.Decimal(10, 2)
+
+  serverSeq BigInt    @default(0)
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([pedidoId, productoId])
+  @@index([serverSeq])
+}
+
+/// Registro de mutaciones ya aplicadas, para que el push sea idempotente.
+/// Reenviar una mutacion ya vista es un no-op. Es lo que hace seguro
+/// reintentar cuando la red se corta a mitad del push.
+model AppliedMutation {
+  mutationId String   @id @db.Uuid
+  entity     String
+  op         String
+  appliedAt  DateTime @default(now())
+
+  @@index([appliedAt])
+}
+
+/// Usuario del local. Deliberadamente SIN campos de sincronizacion: nunca
+/// viaja al cliente. El celular solo guarda su token, no la tabla.
+///
+/// Sin roles: el alcance de la v1 es un local donde todos los que entran
+/// pueden contar. Agregar roles antes de necesitarlos solo agregaria
+/// pantallas de administracion que nadie pidio.
+model Usuario {
+  id        String   @id @db.Uuid
+  nombre    String   @unique
+  pinHash   String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}

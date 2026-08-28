@@ -1,0 +1,281 @@
+/*
+ * Diseñado para un celular sostenido con una mano, en un depósito, mientras
+ * la otra mano mueve cajas. De ahí las decisiones menos habituales:
+ * controles de 48px, tipografía grande y contraste alto.
+ */
+
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --border: #e3e6ea;
+  --text: #16191d;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --falta-bg: #fff7ed;
+  --falta-borde: #fdba74;
+  --falta-texto: #9a3412;
+  --ok: #15803d;
+  --alerta: #b45309;
+  --alerta-bg: #fffbeb;
+  --sombra: 0 1px 2px rgba(0, 0, 0, .06);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior-y: contain;
+}
+
+.app { display: flex; flex-direction: column; min-height: 100%; }
+
+/* ------------------------------------------------------------- cabecera */
+
+.cabecera {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px 0;
+}
+
+.cabecera-fila {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+
+.titulo { font-size: 17px; font-weight: 650; margin: 0; }
+.subtitulo { font-size: 12px; color: var(--muted); }
+
+.conexion {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 4px 10px; background: var(--panel);
+}
+.punto { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.punto.ok { background: var(--ok); }
+.punto.sin { background: var(--alerta); }
+.punto.sync { background: var(--accent); animation: latir 1s ease-in-out infinite; }
+@keyframes latir { 50% { opacity: .3; } }
+
+/* Chips de sector: siguen el recorrido físico del depósito, no el alfabeto. */
+.sectores {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px;
+  scrollbar-width: none;
+}
+.sectores::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none; border: 1px solid var(--border); background: var(--panel);
+  color: var(--text); border-radius: 999px; padding: 8px 14px;
+  font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+.chip .cuenta { color: var(--muted); font-size: 12px; margin-left: 5px; }
+.chip[aria-pressed="true"] {
+  background: var(--text); color: var(--panel); border-color: var(--text);
+}
+.chip[aria-pressed="true"] .cuenta { color: rgba(255,255,255,.7); }
+
+/* ---------------------------------------------------------------- lista */
+
+.lista { flex: 1; padding: 10px 12px 90px; }
+
+.fila {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  box-shadow: var(--sombra);
+}
+/* Resalta lo que hay que pedir: es lo único que el encargado busca al revisar. */
+.fila.falta { border-color: var(--falta-borde); background: var(--falta-bg); }
+
+.fila-arriba { display: flex; align-items: flex-start; gap: 10px; }
+.fila-datos { flex: 1; min-width: 0; }
+
+.nombre { font-weight: 600; line-height: 1.25; }
+.meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.meta .sep { opacity: .45; margin: 0 5px; }
+
+.contador { display: flex; align-items: center; gap: 6px; flex: none; }
+.contador button {
+  width: 44px; height: 44px; flex: none;
+  border: 1px solid var(--border); background: var(--panel);
+  border-radius: 10px; font-size: 22px; line-height: 1; color: var(--text);
+  cursor: pointer; display: grid; place-items: center;
+}
+.contador button:active { background: var(--bg); }
+.contador input {
+  width: 68px; height: 44px; text-align: center;
+  font: inherit; font-size: 17px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); color: var(--text);
+}
+.contador input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.contador input.vacio { color: var(--muted); font-weight: 400; }
+
+.fila-abajo {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--border);
+  font-size: 13.5px;
+}
+.pedir-auto { color: var(--falta-texto); font-weight: 600; }
+.pedir-label { color: var(--muted); }
+.pedir-manual {
+  width: 82px; height: 38px; text-align: center; font: inherit; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); color: var(--text);
+}
+.sin-config {
+  font-size: 11px; color: var(--alerta); background: var(--alerta-bg);
+  border: 1px solid var(--falta-borde); border-radius: 4px; padding: 1px 6px;
+}
+
+/* ------------------------------------------------------------- pie fijo */
+
+.pie {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: var(--panel); border-top: 1px solid var(--border);
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 12px;
+}
+.progreso { flex: 1; min-width: 0; }
+.progreso-texto { font-size: 13px; color: var(--muted); }
+.barra { height: 5px; background: var(--bg); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+.barra > div { height: 100%; background: var(--ok); transition: width .2s; }
+
+.boton {
+  border: none; border-radius: 10px; padding: 13px 18px;
+  font: inherit; font-weight: 600; cursor: pointer;
+  background: var(--text); color: var(--panel); flex: none;
+}
+.boton:disabled { background: var(--border); color: var(--muted); cursor: default; }
+
+/* ------------------------------------------------------------- estados */
+
+.centrado {
+  flex: 1; display: grid; place-items: center; padding: 40px 20px;
+  text-align: center; color: var(--muted);
+}
+.vacio-sector { padding: 30px 16px; text-align: center; color: var(--muted); }
+
+/* ------------------------------------------------- resumen por proveedor */
+
+.volver {
+  width: 40px; height: 40px; flex: none; margin-left: -8px;
+  border: none; background: none; color: var(--text);
+  font-size: 24px; line-height: 1; cursor: pointer;
+  border-radius: 10px; display: grid; place-items: center;
+}
+.volver:active { background: var(--bg); }
+
+.tarjeta-prov {
+  display: block; width: 100%; text-align: left;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; margin-bottom: 8px;
+  box-shadow: var(--sombra); font: inherit; color: var(--text); cursor: pointer;
+}
+.tarjeta-prov:active { background: var(--bg); }
+.tarjeta-arriba { display: flex; align-items: flex-start; gap: 10px; }
+.tarjeta-datos { flex: 1; min-width: 0; }
+
+.estado-pedido {
+  flex: none; font-size: 12px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); background: var(--bg);
+  white-space: nowrap;
+}
+.estado-pedido.enviado {
+  color: #14532d; background: #dcfce7; border-color: #86efac;
+}
+
+.aviso-telefono {
+  margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--falta-borde);
+  font-size: 12.5px; color: var(--falta-texto);
+}
+
+/* --------------------------------------------- mensaje / previsualizacion */
+
+.aviso-fuerte {
+  background: var(--falta-bg); border: 1px solid var(--falta-borde);
+  color: var(--falta-texto); border-radius: 10px; padding: 11px 13px;
+  margin-bottom: 10px; font-size: 14px; line-height: 1.4;
+}
+
+.nota-editado {
+  font-size: 12.5px; color: var(--muted); margin-bottom: 8px; padding: 0 2px;
+}
+
+/* Aproxima la burbuja de WhatsApp: lo que se previsualiza tiene que
+   parecerse a lo que se manda, o la previsualización no sirve de nada. */
+.burbuja {
+  background: #dcf8c6; border-radius: 12px 12px 12px 4px;
+  padding: 12px 14px; white-space: pre-wrap; word-break: break-word;
+  font-size: 15px; line-height: 1.5; color: #111b21;
+  box-shadow: var(--sombra); margin-bottom: 14px;
+}
+
+.editor {
+  width: 100%; font: inherit; font-size: 15px; line-height: 1.5;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); color: var(--text); resize: vertical;
+  margin-bottom: 14px;
+}
+.editor:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.acciones { display: flex; gap: 10px; }
+.acciones .boton { flex: 1; }
+.boton.secundario {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+}
+
+/* --------------------------------------------------------------- sesion */
+
+.login {
+  display: flex; flex-direction: column; gap: 14px;
+  width: 100%; max-width: 300px; text-align: left;
+}
+.login .titulo { text-align: center; margin-bottom: 6px; }
+.campo { display: flex; flex-direction: column; gap: 5px; }
+.campo span { font-size: 13px; color: var(--muted); }
+.campo input {
+  font: inherit; font-size: 17px; padding: 11px 12px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); color: var(--text);
+}
+.campo input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.error {
+  font-size: 13.5px; color: var(--falta-texto);
+  background: var(--falta-bg); border: 1px solid var(--falta-borde);
+  border-radius: 8px; padding: 9px 11px;
+}
+
+/* -------------------------------------------------- cabecera: acciones */
+
+.acciones-cabecera { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.acciones-cabecera .conexion { margin-left: 0; }
+
+/* Contador de cambios sin subir. Se ve siempre que haya algo pendiente:
+   es la prueba de que el conteo sin señal no se perdió. */
+.pendientes {
+  background: var(--alerta); color: #fff; border-radius: 999px;
+  font-size: 11px; font-weight: 700; padding: 1px 6px; margin-left: 2px;
+}
+
+.icono {
+  width: 36px; height: 32px; flex: none;
+  border: 1px solid var(--border); background: var(--panel);
+  border-radius: 8px; font-size: 15px; color: var(--muted);
+  cursor: pointer; display: grid; place-items: center;
+}
+.icono:active { background: var(--bg); }
+
+/* ------------------------------------------------------------ historial */
+
+.grupo-fecha { margin-bottom: 18px; }
+.fecha-titulo {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+  margin: 0 2px 7px;
+}

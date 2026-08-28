@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maestro de insumos</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #e2e5ea;
+    --text: #1c1f24;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --warn-bg: #fff8e6;
+    --warn-border: #f0d089;
+    --ok: #16794a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 14px 20px; display: flex; align-items: baseline; gap: 20px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav button {
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    padding: 6px 12px; cursor: pointer; font: inherit; color: var(--muted);
+  }
+  nav button.on { background: var(--bg); color: var(--text); border-color: var(--border); }
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  .tablero { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tarjeta {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; min-width: 120px;
+  }
+  .tarjeta .n { font-size: 20px; font-weight: 600; }
+  .tarjeta .l { color: var(--muted); font-size: 12px; }
+  .tarjeta.pendiente .n { color: #b45309; }
+
+  .aviso {
+    background: var(--warn-bg); border: 1px solid var(--warn-border);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+  }
+
+  .filtros {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
+  }
+  select, input[type=text], input[type=number] {
+    font: inherit; padding: 6px 8px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--panel); color: var(--text);
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--muted); font-weight: 600; position: sticky; top: 57px;
+    background: var(--panel); z-index: 5;
+  }
+  tbody tr:hover { background: #fafbfc; }
+  td.num input { width: 80px; text-align: right; }
+  td .sec { color: var(--muted); font-size: 12px; }
+  .tag {
+    display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+    background: var(--warn-bg); border: 1px solid var(--warn-border); color: #92400e;
+  }
+  .tag.inactivo { background: #f3f4f6; border-color: var(--border); color: var(--muted); }
+  tr.guardado td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+  .vacio { padding: 40px; text-align: center; color: var(--muted); }
+  .estado { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+  /* Login. El ABM se toca desde una computadora del local, no desde la calle,
+     pero igual pide sesion: es la misma API que usa la app. */
+  .login-caja {
+    max-width: 300px; margin: 60px auto; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; padding: 22px;
+    display: flex; flex-direction: column; gap: 13px;
+  }
+  .login-caja h2 { margin: 0; font-size: 16px; }
+  .login-caja label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .login-caja input { font-size: 15px; padding: 9px 10px; }
+  .login-caja button {
+    font: inherit; font-weight: 600; padding: 10px; cursor: pointer;
+    background: var(--text); color: var(--panel); border: none; border-radius: 6px;
+  }
+  .login-error {
+    font-size: 13px; color: #92400e; background: var(--warn-bg);
+    border: 1px solid var(--warn-border); border-radius: 6px; padding: 8px 10px;
+  }
+  .salir {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; font: inherit; font-size: 12px; color: var(--muted); cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Maestro de insumos</h1>
+  <nav>
+    <button id="tab-productos" class="on">Productos</button>
+    <button id="tab-proveedores">Proveedores</button>
+    <button id="salir" class="salir" title="Cerrar sesión">Salir</button>
+  </nav>
+</header>
+
+<div id="vista-login" hidden>
+  <form class="login-caja" id="form-login">
+    <h2>Maestro de insumos</h2>
+    <label>Usuario
+      <input type="text" id="l-usuario" autocomplete="username" autocapitalize="none">
+    </label>
+    <label>PIN
+      <input type="password" id="l-pin" inputmode="numeric" autocomplete="current-password">
+    </label>
+    <div class="login-error" id="l-error" hidden></div>
+    <button type="submit">Entrar</button>
+  </form>
+</div>
+
+<main>
+  <div id="vista-productos">
+    <div class="tablero" id="tablero"></div>
+    <div class="filtros">
+      <select id="f-sector"><option value="">Todos los sectores</option></select>
+      <select id="f-proveedor"><option value="">Todos los proveedores</option></select>
+      <input type="text" id="f-q" placeholder="Buscar producto...">
+      <label class="check">
+        <input type="checkbox" id="f-incompletos" checked>
+        Solo los que faltan configurar
+      </label>
+      <span class="estado" id="estado"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Producto</th>
+          <th style="width:14%">Proveedor</th>
+          <th style="width:10%">Unidad</th>
+          <th style="width:10%">Stock mínimo</th>
+          <th style="width:10%">Orden</th>
+          <th style="width:10%">Precio</th>
+          <th style="width:10%">Bulto</th>
+          <th style="width:6%">Activo</th>
+        </tr>
+      </thead>
+      <tbody id="filas"></tbody>
+    </table>
+    <div class="vacio" id="vacio" hidden>Nada para mostrar con estos filtros.</div>
+  </div>
+
+  <div id="vista-proveedores" hidden>
+    <div class="aviso" id="aviso-tel" hidden></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:20%">Proveedor</th>
+          <th style="width:20%">Teléfono WhatsApp</th>
+          <th style="width:20%">Días de entrega</th>
+          <th style="width:15%">Hora de corte</th>
+          <th style="width:25%">Contacto</th>
+        </tr>
+      </thead>
+      <tbody id="filas-prov"></tbody>
+    </table>
+  </div>
+</main>
+
+<script type="module">
+const API = '/api/maestro'
+const UNIDADES = ['kg', 'lt', 'un']
+const SECTORES = ['camara','seco','bebidas','congelado','limpieza','descartables','bodega']
+const SECTOR_LABEL = {
+  camara:'Cámara', seco:'Seco', bebidas:'Bebidas', congelado:'Congelado',
+  limpieza:'Limpieza', descartables:'Descartables', bodega:'Bodega',
+}
+
+const $ = (id) => document.getElementById(id)
+let proveedores = []
+let nombreProveedor = new Map()
+
+const CLAVE_TOKEN = 'abm.token'
+
+/**
+ * Llamada a la API con el token de sesion.
+ *
+ * Un 401 no es un error a mostrar sino un cambio de pantalla: el token
+ * vencio y hay que volver a entrar. Se distingue del resto de los errores
+ * porque la reaccion es completamente distinta.
+ */
+async function api(path, opts = {}) {
+  const token = localStorage.getItem(CLAVE_TOKEN)
+  const headers = { 'content-type': 'application/json', ...(opts.headers ?? {}) }
+  if (token) headers.authorization = `Bearer ${token}`
+
+  const r = await fetch(API + path, { ...opts, headers })
+  if (r.status === 401) {
+    localStorage.removeItem(CLAVE_TOKEN)
+    mostrarLogin()
+    throw new Error('sesion expirada')
+  }
+  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`)
+  return r.json()
+}
+
+/**
+ * Guarda un solo campo apenas se sale de la celda.
+ *
+ * El autoguardado por campo, y no un boton "Guardar" al final, es deliberado:
+ * son 191 productos a completar a mano y cualquier friccion extra por fila se
+ * multiplica por 191. La fila parpadea en verde como unica confirmacion.
+ */
+async function guardarCampo(id, campo, valor, tr) {
+  try {
+    await api(`/productos/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ [campo]: valor }),
+    })
+    tr.classList.add('guardado')
+    setTimeout(() => tr.classList.remove('guardado'), 900)
+    refrescarTablero()
+  } catch (e) {
+    alert('No se pudo guardar: ' + e.message)
+  }
+}
+
+/** '' -> null. Es la diferencia entre "no se pide nunca" (0) y "falta cargar". */
+function numOrNull(v) {
+  const s = String(v).trim().replace(',', '.')
+  if (s === '') return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
+function celdaNum(p, campo, tr, opts = {}) {
+  const td = document.createElement('td')
+  td.className = 'num'
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.inputMode = 'decimal'
+  input.value = p[campo] ?? ''
+  input.placeholder = opts.placeholder ?? ''
+  input.addEventListener('change', () => {
+    const v = numOrNull(input.value)
+    input.value = v ?? ''
+    guardarCampo(p.id, campo, v, tr)
+  })
+  // Enter baja a la misma columna de la fila siguiente: se completa una
+  // columna entera de corrido, que es como se carga este tipo de dato.
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    input.blur()
+    const i = [...tr.parentNode.children].indexOf(tr)
+    const sig = tr.parentNode.children[i + 1]
+    if (sig) sig.querySelector(`td:nth-child(${td.cellIndex + 1}) input`)?.focus()
+  })
+  td.append(input)
+  return td
+}
+
+function filaProducto(p) {
+  const tr = document.createElement('tr')
+
+  const tdNombre = document.createElement('td')
+  tdNombre.append(p.nombre)
+  if (!p.activo) {
+    const t = document.createElement('span')
+    t.className = 'tag inactivo'
+    t.textContent = 'inactivo'
+    t.title = 'Duplicado en otro proveedor. Solo uno queda activo para que el conteo no pida dos veces.'
+    tdNombre.append(' ', t)
+  }
+  const sec = document.createElement('div')
+  sec.className = 'sec'
+  sec.textContent = SECTOR_LABEL[p.sector] + (p.familia ? ' · ' + p.familia : '')
+  tdNombre.append(sec)
+  tr.append(tdNombre)
+
+  const tdProv = document.createElement('td')
+  tdProv.textContent = nombreProveedor.get(p.proveedorId) ?? '—'
+  tr.append(tdProv)
+
+  const tdUnidad = document.createElement('td')
+  const sel = document.createElement('select')
+  sel.append(new Option('—', ''))
+  for (const u of UNIDADES) sel.append(new Option(u, u))
+  sel.value = p.unidad ?? ''
+  sel.addEventListener('change', () =>
+    guardarCampo(p.id, 'unidad', sel.value === '' ? null : sel.value, tr))
+  tdUnidad.append(sel)
+  tr.append(tdUnidad)
+
+  tr.append(celdaNum(p, 'stockMinimo', tr))
+  tr.append(celdaNum(p, 'ordenRecorrido', tr))
+  tr.append(celdaNum(p, 'precioUnitario', tr))
+  tr.append(celdaNum(p, 'cantidadBulto', tr))
+
+  const tdActivo = document.createElement('td')
+  const chk = document.createElement('input')
+  chk.type = 'checkbox'
+  chk.checked = p.activo
+  chk.addEventListener('change', () => guardarCampo(p.id, 'activo', chk.checked, tr))
+  tdActivo.append(chk)
+  tr.append(tdActivo)
+
+  return tr
+}
+
+async function cargarProductos() {
+  const q = new URLSearchParams()
+  if ($('f-sector').value) q.set('sector', $('f-sector').value)
+  if ($('f-proveedor').value) q.set('proveedorId', $('f-proveedor').value)
+  if ($('f-q').value.trim()) q.set('q', $('f-q').value.trim())
+  if ($('f-incompletos').checked) q.set('incompletos', 'true')
+
+  const productos = await api('/productos?' + q)
+  const tbody = $('filas')
+  tbody.replaceChildren(...productos.map(filaProducto))
+  $('vacio').hidden = productos.length > 0
+  $('estado').textContent = `${productos.length} producto${productos.length === 1 ? '' : 's'}`
+}
+
+async function refrescarTablero() {
+  const r = await api('/resumen')
+  const total = r.sectores.reduce((a, s) => a + s.total, 0)
+  const faltan = r.sectores.reduce((a, s) => a + s.incompletos, 0)
+
+  const tarjetas = [
+    { n: total, l: 'productos activos' },
+    { n: faltan, l: 'faltan configurar', pendiente: faltan > 0 },
+    { n: r.sinPrecio, l: 'sin precio', pendiente: r.sinPrecio > 0 },
+  ]
+  for (const s of r.sectores) {
+    tarjetas.push({
+      n: `${s.total - s.incompletos}/${s.total}`,
+      l: SECTOR_LABEL[s.sector],
+      pendiente: s.incompletos > 0,
+    })
+  }
+
+  $('tablero').replaceChildren(...tarjetas.map((t) => {
+    const d = document.createElement('div')
+    d.className = 'tarjeta' + (t.pendiente ? ' pendiente' : '')
+    d.innerHTML = `<div class="n"></div><div class="l"></div>`
+    d.querySelector('.n').textContent = t.n
+    d.querySelector('.l').textContent = t.l
+    return d
+  }))
+}
+
+// ------------------------------------------------------------ proveedores
+
+function campoProv(p, campo, placeholder) {
+  const td = document.createElement('td')
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.style.width = '100%'
+  input.value = p[campo] ?? ''
+  input.placeholder = placeholder ?? ''
+  input.addEventListener('change', async () => {
+    const v = input.value.trim()
+    try {
+      const actualizado = await api(`/proveedores/${p.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ [campo]: v === '' ? null : v }),
+      })
+      if (campo === 'telefonoWa') input.value = actualizado.telefonoWa
+      await cargarProveedores()
+    } catch (e) {
+      alert('No se pudo guardar: ' + e.message)
+    }
+  })
+  td.append(input)
+  return td
+}
+
+async function cargarProveedores() {
+  proveedores = await api('/proveedores')
+  nombreProveedor = new Map(proveedores.map((p) => [p.id, p.nombre]))
+
+  const conPlaceholder = proveedores.filter((p) => p.telefonoEsPlaceholder)
+  const aviso = $('aviso-tel')
+  aviso.hidden = conPlaceholder.length === 0
+  if (conPlaceholder.length > 0) {
+    aviso.textContent =
+      `${conPlaceholder.length} de ${proveedores.length} proveedores todavía tienen el ` +
+      `teléfono de prueba. Los pedidos a esos proveedores saldrían al número equivocado: ` +
+      `cargá los reales antes de usar la app de verdad.`
+  }
+
+  $('filas-prov').replaceChildren(...proveedores.map((p) => {
+    const tr = document.createElement('tr')
+    const tdNombre = document.createElement('td')
+    tdNombre.append(p.nombre)
+    if (p.telefonoEsPlaceholder) {
+      const t = document.createElement('span')
+      t.className = 'tag'
+      t.textContent = 'teléfono de prueba'
+      tdNombre.append(' ', t)
+    }
+    tr.append(tdNombre)
+    tr.append(campoProv(p, 'telefonoWa', '376XXXXXX'))
+    tr.append(campoProv(p, 'diasEntrega', 'martes y viernes'))
+    tr.append(campoProv(p, 'horaCorte', '10:00'))
+    tr.append(campoProv(p, 'contacto'))
+    return tr
+  }))
+
+  const sel = $('f-proveedor')
+  const actual = sel.value
+  sel.replaceChildren(new Option('Todos los proveedores', ''))
+  for (const p of proveedores) sel.append(new Option(p.nombre, p.id))
+  sel.value = actual
+}
+
+// ------------------------------------------------------------------- init
+
+function mostrar(tab) {
+  const esProd = tab === 'productos'
+  $('vista-productos').hidden = !esProd
+  $('vista-proveedores').hidden = esProd
+  $('tab-productos').classList.toggle('on', esProd)
+  $('tab-proveedores').classList.toggle('on', !esProd)
+}
+$('tab-productos').onclick = () => mostrar('productos')
+$('tab-proveedores').onclick = () => mostrar('proveedores')
+
+for (const s of SECTORES) $('f-sector').append(new Option(SECTOR_LABEL[s], s))
+for (const el of ['f-sector', 'f-proveedor', 'f-incompletos']) {
+  $(el).addEventListener('change', cargarProductos)
+}
+let debounce
+$('f-q').addEventListener('input', () => {
+  clearTimeout(debounce)
+  debounce = setTimeout(cargarProductos, 250)
+})
+
+// --------------------------------------------------------------- sesion
+
+function mostrarLogin() {
+  $('vista-login').hidden = false
+  $('vista-productos').hidden = true
+  $('vista-proveedores').hidden = true
+  $('salir').hidden = true
+  document.querySelector('nav').style.visibility = 'hidden'
+}
+
+async function cargarTodo() {
+  $('vista-login').hidden = true
+  document.querySelector('nav').style.visibility = 'visible'
+  $('salir').hidden = false
+  mostrar('productos')
+  await cargarProveedores()
+  await refrescarTablero()
+  await cargarProductos()
+}
+
+$('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const err = $('l-error')
+  err.hidden = true
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        usuario: $('l-usuario').value.trim(), pin: $('l-pin').value,
+      }),
+    })
+    if (!r.ok) {
+      err.textContent = 'Usuario o PIN incorrecto.'
+      err.hidden = false
+      return
+    }
+    const datos = await r.json()
+    localStorage.setItem(CLAVE_TOKEN, datos.token)
+    await cargarTodo()
+  } catch {
+    err.textContent = 'No hay conexión con el servidor.'
+    err.hidden = false
+  }
+})
+
+$('salir').onclick = () => {
+  localStorage.removeItem(CLAVE_TOKEN)
+  mostrarLogin()
+}
+
+if (localStorage.getItem(CLAVE_TOKEN)) {
+  // El token guardado puede estar vencido; si lo esta, api() muestra el login.
+  try { await cargarTodo() } catch { /* mostrarLogin() ya se encargo */ }
+} else {
+  mostrarLogin()
+}
+</script>
+</body>
+</html>

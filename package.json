@@ -1,0 +1,27 @@
+{
+  "name": "restoapp-easy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sistema de pedidos de insumos - PWA offline con sincronizacion",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @resto/shared",
+    "dev:server": "npm run dev -w @resto/server",
+    "dev:web": "npm run dev -w @resto/web",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w @resto/server",
+    "db:studio": "npm run studio -w @resto/server",
+    "import:catalogo": "npm run import -w @resto/server",
+    "test": "npm run test -w @resto/shared && npm run test -w @resto/web",
+    "typecheck": "tsc -b --force",
+    "build": "npm run build -w @resto/shared && npm run build -w @resto/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
